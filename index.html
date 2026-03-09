@@ -39,6 +39,7 @@
 
     const NEEDS_ACTION = new Set(["Aberto", "Em Progresso", "Escalado"]);
     const WAITING_CLIENT = new Set(["Aguarda Cliente"]);
+    const ARCHIVE_STORAGE_KEY = "supportdesk.archivedTickets";
 
     const ALL_STATUSES = Object.keys(STATUS_CFG);
     const IS = { width:"100%", padding:"9px 12px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, outline:"none", color:"#1C1F2E", background:"#fff", boxSizing:"border-box", fontFamily:"inherit" };
@@ -191,6 +192,16 @@
       const [selected,setSelected]=useState(null);
       const [startEditingTicketId,setStartEditingTicketId]=useState(null);
       const [lastSync,setLastSync]=useState(null);
+      const [showArchived,setShowArchived]=useState(false);
+      const [archivedTickets,setArchivedTickets]=useState(() => {
+        try {
+          const raw = localStorage.getItem(ARCHIVE_STORAGE_KEY);
+          const parsed = raw ? JSON.parse(raw) : {};
+          return parsed && typeof parsed === "object" ? parsed : {};
+        } catch {
+          return {};
+        }
+      });
 
       const fetchData=useCallback(async()=>{
         setLoading(true);setError(null);
@@ -212,10 +223,38 @@
 
       useEffect(()=>{fetchData();},[fetchData]);
       useEffect(()=>{const id=setInterval(fetchData,60000);return()=>clearInterval(id);},[fetchData]);
+      useEffect(()=>{localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archivedTickets));},[archivedTickets]);
       const handleUpdate=useCallback((id,fields)=>{setTickets((p)=>p.map((t)=>t.ID===id?{...t,...fields}:t));setSelected((p)=>p&&p.ID===id?{...p,...fields}:p);},[]);
+      const toggleArchiveTicket=useCallback((ticketId)=>{
+        setArchivedTickets((prev)=>{
+          const next = { ...prev };
+          if (next[ticketId]) {
+            delete next[ticketId];
+          } else {
+            next[ticketId] = true;
+          }
+          return next;
+        });
+      },[]);
       const allResp=useMemo(()=>["Todos",...Array.from(new Set(tickets.map((t)=>t.Responsável).filter(Boolean)))],[tickets]);
       const filtered=useMemo(()=>tickets.filter((t)=>{const q=search.toLowerCase();return(!search||t.NOME?.toLowerCase().includes(q)||t["N.º DE CONTACTO"]?.includes(q)||t.ID?.toLowerCase().includes(q)||t.MENSAGEM?.toLowerCase().includes(q))&&(filterStatus==="Todos"||t["Current Status"]===filterStatus)&&(filterResp==="Todos"||t.Responsável===filterResp);}),[tickets,search,filterStatus,filterResp]);
       const grouped=useMemo(()=>{const m={};filtered.forEach((t)=>{const k=getUserGroupKey(t);if(!m[k])m[k]={key:k,contact:t["N.º DE CONTACTO"]||"-",nome:t.NOME||"Sem nome",tickets:[]};m[k].tickets.push(t);});return Object.values(m).sort((a,b)=>Math.max(...b.tickets.map((t)=>+new Date(t.TIMESTAMP||0)))-Math.max(...a.tickets.map((t)=>+new Date(t.TIMESTAMP||0))));},[filtered]);
+      const archivedCount=useMemo(()=>filtered.filter((t)=>archivedTickets[t.ID]).length,[filtered,archivedTickets]);
+      const visibleTicketCount=useMemo(()=>filtered.filter((t)=>showArchived?archivedTickets[t.ID]:!archivedTickets[t.ID]).length,[filtered,showArchived,archivedTickets]);
+      const visibleGroups=useMemo(()=>{
+        const groupsWithVisibleTickets = grouped
+          .map((group)=>({
+            ...group,
+            tickets: group.tickets.filter((ticket)=>showArchived?archivedTickets[ticket.ID]:!archivedTickets[ticket.ID]),
+          }))
+          .filter((group)=>group.tickets.length>0);
+
+        return groupsWithVisibleTickets.sort((a,b)=>{
+          const aLast = Math.max(...a.tickets.map((t)=>+new Date(t.TIMESTAMP||0)));
+          const bLast = Math.max(...b.tickets.map((t)=>+new Date(t.TIMESTAMP||0)));
+          return bLast-aLast;
+        });
+      },[grouped,showArchived,archivedTickets]);
       const stats=useMemo(()=>{const s={};tickets.forEach((t)=>{const cs=t["Current Status"]||"Sem Estado";s[cs]=(s[cs]||0)+1;});return s;},[tickets]);
 
       return(
@@ -252,7 +291,14 @@
               </div>
               <select value={filterStatus} onChange={(e)=>setFS(e.target.value)} style={{...IS,width:"auto"}}><option>Todos</option>{ALL_STATUSES.map((s)=><option key={s}>{s}</option>)}</select>
               <select value={filterResp} onChange={(e)=>setFR(e.target.value)} style={{...IS,width:"auto"}}>{allResp.map((r)=><option key={r}>{r}</option>)}</select>
-              <span style={{fontSize:12,color:"#94A3B8"}}>{grouped.length} utilizador(es) | {filtered.length} ticket(s)</span>
+              <button
+                onClick={()=>setShowArchived((v)=>!v)}
+                style={{border:"1.5px solid #E2E8F0",background:showArchived?"#EEF2FF":"#fff",color:showArchived?"#3730A3":"#475569",borderRadius:8,padding:"8px 12px",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                {showArchived?"Ver ativos":"Ver arquivados"} ({archivedCount})
+              </button>
+              <span style={{fontSize:12,color:"#94A3B8"}}>{visibleGroups.length} utilizador(es) | {visibleTicketCount} mensagem(ns) {showArchived?"arquivada(s)":"ativa(s)"}</span>
             </div>
 
             {loading&&<Spinner/>}
@@ -265,8 +311,8 @@
 
             {!loading&&!error&&(
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {grouped.length===0&&<div style={{textAlign:"center",padding:"60px 0",color:"#94A3B8",fontSize:14}}>Nenhum resultado encontrado.</div>}
-                {grouped.map((group)=>{
+                {visibleGroups.length===0&&<div style={{textAlign:"center",padding:"60px 0",color:"#94A3B8",fontSize:14}}>{showArchived?"Sem mensagens arquivadas.":"Nenhum resultado encontrado."}</div>}
+                {visibleGroups.map((group)=>{
                   const isOpen=expanded[group.key];
                   const sorted=[...group.tickets].sort((a,b)=>new Date(b.TIMESTAMP)-new Date(a.TIMESTAMP));
                   const last=sorted[0];
@@ -296,9 +342,9 @@
                         </div>
                       </div>
                       {isOpen&&(
-                        <div style={{borderTop:"1px solid #F1F5F9"}}>
+                        <div style={{borderTop:"1.5px solid #DCE4EE"}}>
                           {sorted.map((ticket,i)=>(
-                            <div key={ticket.ID} onClick={()=>{setStartEditingTicketId(null);setSelected(ticket);}} style={{padding:"13px 20px 13px 72px",borderBottom:i<sorted.length-1?"1px solid #F8FAFC":"none",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:12,transition:"background 0.1s"}} onMouseEnter={(e)=>e.currentTarget.style.background="#F8FAFC"} onMouseLeave={(e)=>e.currentTarget.style.background="transparent"}>
+                            <div key={ticket.ID} onClick={()=>{setStartEditingTicketId(null);setSelected(ticket);}} style={{padding:"13px 20px 13px 72px",borderBottom:i<sorted.length-1?"1.5px solid #E2E8F0":"none",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:12,transition:"background 0.1s"}} onMouseEnter={(e)=>e.currentTarget.style.background="#F8FAFC"} onMouseLeave={(e)=>e.currentTarget.style.background="transparent"}>
                               <div style={{flex:1,minWidth:0}}>
                                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
                                   <span style={{fontFamily:"monospace",fontSize:11,color:"#4F46E5",fontWeight:600,background:"#EEF2FF",padding:"1px 6px",borderRadius:4}}>{ticket.ID}</span>
@@ -313,6 +359,19 @@
                                 <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"flex-end",marginBottom:3}}><Ava name={ticket.Responsável||"?"} size={20}/><span style={{fontSize:11,color:"#64748B"}}>{ticket.Responsável||"-"}</span></div>
                                 <div style={{fontSize:11,color:"#94A3B8"}}>{fmt(ticket.TIMESTAMP)} {fmtT(ticket.TIMESTAMP)}</div>
                                 {ticket["Lead Time"]&&<div style={{fontSize:11,color:"#10B981",fontWeight:600,marginTop:2}}>{ticket["Lead Time"]}</div>}
+                                <button
+                                  onClick={(e)=>{e.stopPropagation();toggleArchiveTicket(ticket.ID);}}
+                                  title={archivedTickets[ticket.ID]?"Desarquivar mensagem":"Arquivar mensagem"}
+                                  aria-label={archivedTickets[ticket.ID]?"Desarquivar mensagem":"Arquivar mensagem"}
+                                  style={{marginTop:6,marginRight:6,border:"1px solid #E2E8F0",background:archivedTickets[ticket.ID]?"#EEF2FF":"#fff",color:archivedTickets[ticket.ID]?"#3730A3":"#64748B",borderRadius:8,padding:"4px 7px",fontSize:11,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5}}
+                                >
+                                  {archivedTickets[ticket.ID] ? (
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="m9 14 3 3 3-3"/><path d="M12 17V11"/></svg>
+                                  ) : (
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+                                  )}
+                                  {archivedTickets[ticket.ID]?"Desarquivar":"Arquivar"}
+                                </button>
                                 <button
                                   onClick={(e)=>{e.stopPropagation();setStartEditingTicketId(ticket.ID);setSelected(ticket);}}
                                   title="Editar ticket"
