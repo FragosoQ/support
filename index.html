@@ -18,8 +18,8 @@
     const USE_MOCK = false;
 
     const MOCK_DATA = [
-      { ID:"T0001", MENSAGEM:"Não consigo aceder à minha conta.", "N.º DE CONTACTO":"912345678", NOME:"Ana Ferreira", TIMESTAMP:"2024-03-01T09:15:00", STATUS:"Aberto", Responsável:"João Silva", "Current Status":"Em Progresso", "Resolução [descritivo]":"", Check:"", "Data de Conclusão":"", "Lead Time":"" },
-      { ID:"T0002", MENSAGEM:"Fatura com valor incorreto.", "N.º DE CONTACTO":"912345678", NOME:"Ana Ferreira", TIMESTAMP:"2024-03-05T14:30:00", STATUS:"Aberto", Responsável:"Maria Santos", "Current Status":"Aguarda Cliente", "Resolução [descritivo]":"Enviado email.", Check:"", "Data de Conclusão":"", "Lead Time":"" },
+      { ID:"T0001", MENSAGEM:"Não consigo aceder à minha conta.", "N.º DE CONTACTO":"912345678", NOME:"Ana Ferreira", TIMESTAMP:"2024-03-01T09:15:00", STATUS:"Aberto", Responsável:"João Silva", "Current Status":"Em Progresso", "Resolução [descritivo]":"", Check:"", "Ai Message":"Olá Ana, já verificámos o acesso e enviámos passos para reposição de palavra-passe.", "Data de Conclusão":"", "Lead Time":"" },
+      { ID:"T0002", MENSAGEM:"Fatura com valor incorreto.", "N.º DE CONTACTO":"912345678", NOME:"Ana Ferreira", TIMESTAMP:"2024-03-05T14:30:00", STATUS:"Aberto", Responsável:"Maria Santos", "Current Status":"Aguarda Cliente", "Resolução [descritivo]":"Enviado email.", Check:"", "Ai Message":"Identificámos diferença na fatura e pedimos confirmação dos dados antes de corrigir.", "Data de Conclusão":"", "Lead Time":"" },
     ];
 
     const STATUS_CFG = {
@@ -158,6 +158,7 @@
                       <div key={l} style={{background:"#F8FAFC",borderRadius:10,padding:"10px 14px"}}><div style={LS}>{l}</div><div style={{fontSize:13,color:"#1C1F2E",fontWeight:500}}>{v}</div></div>
                     ))}
                   </div>
+                  {ticket["Ai Message"]&&<div style={{marginBottom:18}}><label style={LS}>Ai Message</label><p style={{margin:0,fontSize:13,color:"#334155",lineHeight:1.6,background:"#EFF6FF",borderRadius:10,padding:"12px 14px",borderLeft:"3px solid #3B82F6",whiteSpace:"pre-wrap"}}>{ticket["Ai Message"]}</p></div>}
                   {ticket["Resolução [descritivo]"]&&<div style={{marginBottom:18}}><label style={LS}>Resolucao</label><p style={{margin:0,fontSize:13,color:"#334155",lineHeight:1.6,background:"#F0FDF4",borderRadius:10,padding:"12px 14px",borderLeft:"3px solid #10B981"}}>{ticket["Resolução [descritivo]"]}</p></div>}
                   <button onClick={()=>setEditing(true)} style={BP}>Editar ticket</button>
                 </div>
@@ -294,6 +295,7 @@
                                   <span style={{display:"inline-flex",alignItems:"center",gap:4,background:isResolutionChecked(ticket)?"#ECFDF5":"#F8FAFC",color:isResolutionChecked(ticket)?"#047857":"#64748B",padding:"2px 7px",borderRadius:20,fontSize:10,fontWeight:700}}>{isResolutionChecked(ticket)?"Resolucao checked":"Sem check"}</span>
                                 </div>
                                 <p style={{margin:0,fontSize:13,color:"#334155",lineHeight:1.5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:460}}>{ticket.MENSAGEM}</p>
+                                {ticket["Ai Message"]&&<p style={{margin:"4px 0 0",fontSize:11,color:"#2563EB",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:460}}>AI: {ticket["Ai Message"]}</p>}
                                 {ticket["Resolução [descritivo]"]&&<p style={{margin:"3px 0 0",fontSize:11,color:"#94A3B8",fontStyle:"italic"}}>{ticket["Resolução [descritivo]"]}</p>}
                               </div>
                               <div style={{textAlign:"right",flexShrink:0}}>
